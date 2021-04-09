@@ -1,0 +1,31 @@
+.felxContainer {
+    display: flex;
+    width: 800px;
+    height: 100%;
+    overflow: hidden;
+    // flex-direction: row;
+    // flex-wrap: wrap;
+    flex-flow: row wrap;
+    border: dashed 1px;
+    padding: 30px 0 0 0;
+    justify-content: center;
+    align-items: flex-start;
+
+    .felxItem {
+        position: relative;
+        width: 360px;
+        height: 360px;
+        font-weight: 1000;
+        font-size: 16px;
+        line-height: 360px;
+        text-align: center;
+        border: 1px solid;
+        margin-right: 40px;
+        margin-bottom: 40px;
+
+        &:nth-child(2n) {
+            margin-right: 0px;
+        }   
+    }
+
+}
