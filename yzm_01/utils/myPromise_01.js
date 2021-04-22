@@ -38,7 +38,7 @@ myPromise.prototype.then = function(onFulFileds, onRejects) {
    return promise2 = new myPromise((resolve, reject) => {
         if (this.status === FULFILED) {
             queueMicrotask(() => {
-                let x = onFulFiled(this.value);
+                let x = onFulFiled(this.value);1
                 resolvePromise(promise2, x, resolve, reject);
             })
         } else if (this.status === REJECTED) {
