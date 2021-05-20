@@ -21,7 +21,7 @@
     },
     "include": [
         "src/**/*.tsx", "src/component/mobx01/TodoListView.tsx", "src/component/css01/App.jsx", "src/component/css01/FlexTest.jsx"
-    ],
+, "src/component/useHook/Counter1.jsx"    ],
     "exclude": [
         "node_modules",
         "*.test.ts"
