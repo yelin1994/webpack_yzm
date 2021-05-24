@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_application_1/model/model.dart';
+import 'package:flutter_application_1/widget/activityWidget.dart';
 import 'package:flutter_application_1/widget/curiosityWebView.dart';
-import 'package:flutter_application_1/model/model.dart';
+import 'package:flutter_application_1/widget/listImageRight.dart';
+import 'package:flutter_application_1/widget/listImageTop.dart';
+import 'package:flutter_application_1/widget/newsListWidget.dart';
 
 class WidgetUtils {
   static pushToCuriosityWebView(BuildContext context, int id) async {
@@ -20,13 +23,24 @@ class WidgetUtils {
   static Widget getListItemWidget(BuildContext context, dynamic data) {
     Widget widget;
     if (data.runtimeType == Feed) {
-
+      if(data.indexType != null) {
+        widget = NewsListWidget(context, data);
+      } else if(data.type == 2) {
+        widget = ListImageTop(context, data);
+      } else if (data.type == 0) {
+        widget = ActivityWidget(context, data);
+      } else if (data.type == 1) {
+        widget = ListImageRight(context, data);
+      }
     } else {
 
     }
 
     return GestureDetector(
       child: widget,
+      onTap: () {
+
+      },
     );
   }
 }

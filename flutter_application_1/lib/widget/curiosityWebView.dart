@@ -23,8 +23,8 @@ class _CuriosityWebViewState extends State<CuriosityWebView> {
       ),
       body: Container(
         padding: EdgeInsets.all(0),
-        child: WebviewScaffold(url: htmlBody,),
-      )
+        child: WebviewScaffold(url: 'http://www.baidu.com',),
+      ),
     );
   }
 }

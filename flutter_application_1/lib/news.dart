@@ -32,7 +32,7 @@ class _NewsState extends State<News> with AutomaticKeepAliveClientMixin{
       dataList = [];
     }
     Dio dio = Dio();
-    Response response = await dio.get('http://app3.qdaily.com/app3/homes/index_v2/0.json');
+    Response response = await dio.get('$url$lastKey.json');
     MyResult result = MyResult.fromJson(response.data);
     if (!result.response.hasMore) {
       return;
@@ -79,7 +79,6 @@ class _NewsState extends State<News> with AutomaticKeepAliveClientMixin{
         itemBuilder: (context, index) {
          if (index == 0) {
            return SwiperWidget(context, banners);
-    
          } else {
            return  Container();
          }
