@@ -1,0 +1,23 @@
+@font-face {font-family: "uiw-font";
+  src: url('uiw-font.eot?t=1655284930236'); /* IE9*/
+  src: url('uiw-font.eot?t=1655284930236#iefix') format('embedded-opentype'), /* IE6-IE8 */
+  url("uiw-font.woff2?t=1655284930236") format("woff2"),
+  url("uiw-font.woff?t=1655284930236") format("woff"),
+  url('uiw-font.ttf?t=1655284930236') format('truetype'), /* chrome, firefox, opera, Safari, Android, iOS 4.2+*/
+  url('uiw-font.svg?t=1655284930236#uiw-font') format('svg'); /* iOS 4.1- */
+}
+
+[class^="uiw-font-"], [class*=" uiw-font-"] {
+  font-family: 'uiw-font' !important;
+  font-size: 16px;
+  font-style:normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.uiw-font-consult-fangda:before { content: "\ea01"; }
+.uiw-font-ok:before { content: "\ea02"; }
+
+$uiw-font-consult-fangda: "\ea01";
+$uiw-font-ok: "\ea02";
+

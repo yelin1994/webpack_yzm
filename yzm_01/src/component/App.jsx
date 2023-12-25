@@ -11,6 +11,7 @@ export class App extends React.Component {
         this.state = {
             Popup: null
         }
+        console.log('window', window)
     }
     dispatcherPopup = () => {
         import ('./Popup').then(({Popup}) => {

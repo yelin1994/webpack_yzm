@@ -1,10 +1,10 @@
-// import {App} from './component/App.jsx';
+// import {App} from '../component/App';
 import * as ReactDOM from 'react-dom';
-// import {App} from '../component/css01/App'
-// import {App} from '../component/context/App'
-import {App} from '../component/useHook/App'
-// import {App} from '../../ant/App'
 import React from 'react';
+import { App } from '../component/css01/App';
+// import {App} from '../component/context/App'
+// import {App} from '../component/useHook/App'
+// import {App} from '../../ant/App'
 // import '../styles/app.scss';
 // import {App} from '../component/App';
 // import {App} from '../component/mobx01/App'
@@ -20,7 +20,6 @@ import React from 'react';
 // }
 
 ReactDOM.render(
-    <App></App>,
-  document.getElementById('root')
-)
-
+  <App />,
+  document.getElementById('root'),
+);

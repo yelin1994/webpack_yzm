@@ -1,0 +1,29 @@
+<html>
+  <header>
+  </header>
+  <body>
+    <script type="module">
+      console.log('1')
+      let p1 = new Promise((resolve, reject) => {
+        console.log('2')
+        resolve(3)
+      })
+      p1.then(value => console.log('3'))
+      console.log(4)
+      setTimeout(() => {
+        console.log('6')
+      }, 0)
+    </script>
+    <script type="module">
+      console.log('8')
+      let p2 = new Promise((resolve, reject) => {
+        console.log('9')
+        resolve(10)
+      })
+      p2.then(value => console.log('10'))
+      setTimeout(() => {
+        console.log('11')
+      })
+    </script>
+  </body>
+</html>

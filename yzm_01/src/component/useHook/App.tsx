@@ -1,6 +1,7 @@
 import * as React from 'react';
 import {Counter} from  './Counter1'
 // import {Counter} from './State'
+// import {Counter} from './Counter2'
 // const reducer = (state, action) => {
 //     if (action.type === 'add') {
 //         return state + 1;

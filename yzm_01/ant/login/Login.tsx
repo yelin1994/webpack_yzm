@@ -1,7 +1,7 @@
-import {Form, Input, Button} from 'antd';
+// import {Form, Input, Button} from 'antd';
 import * as React from 'react';
 import {useHistory} from 'react-router-dom';
-import {request} from '../../apis/index'
+// import {request} from '../../apis/index'
 import {debounce} from '../../utils/debounce';
 const layout = {
     labelCol: { span: 8 },
@@ -28,14 +28,15 @@ export function Login () {
     }
 
     return (
-        <Form onFinish={onFinish}  {...layout} initialValues ={initialValues} onValuesChange={handleChange}>
-            <Form.Item label="username" name="username"><Input style={{width: '200px'}}></Input></Form.Item>
-            <Form.Item label="password" name="password"><Input.Password style={{width:'200px'}}></Input.Password></Form.Item>
-            <Form.Item>
-                <Button type='primary' htmlType="submit" style={{left: '50%', transform: "translate('-50', 0)"}}>
-                    Submit
-                </Button>
-            </Form.Item>
-        </Form>
+        <div></div>
+        // <Form onFinish={onFinish}  {...layout} initialValues ={initialValues} onValuesChange={handleChange}>
+        //     <Form.Item label="username" name="username"><Input style={{width: '200px'}}></Input></Form.Item>
+        //     <Form.Item label="password" name="password"><Input.Password style={{width:'200px'}}></Input.Password></Form.Item>
+        //     <Form.Item>
+        //         <Button type='primary' htmlType="submit" style={{left: '50%', transform: "translate('-50', 0)"}}>
+        //             Submit
+        //         </Button>
+        //     </Form.Item>
+        // </Form>
     )
 }

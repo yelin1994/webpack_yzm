@@ -1,5 +1,5 @@
 import * as React from 'react';
-import 'antd/dist/antd.css';
+// import 'antd/dist/antd.css';
 import {BrowserRouter, Route} from 'react-router-dom';
 import {createBrowserHistory} from 'history';
 import {Login} from './login/Login';

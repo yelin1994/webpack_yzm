@@ -1,12 +1,13 @@
-import {FlextTest} from './FlexTest';
 import * as React from 'react';
-import {Select} from 'antd'
+import FlextTest from './FlexTest';
+// import {Select} from 'antd'
 
 export class App extends React.Component {
-    componentDidMount() {
-        console.log('-------', this)
-    }
-    render() {
-        return <FlextTest></FlextTest>
-    }
+  componentDidMount() {
+    console.log('-------', this);
+  }
+
+  render() {
+    return <FlextTest />;
+  }
 }

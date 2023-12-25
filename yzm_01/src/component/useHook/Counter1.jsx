@@ -1,6 +1,6 @@
 import * as React from 'react';
 import * as ReactDom from 'react-dom';
-import {ProTableProps} from '@ant-design/pro-table';
+// import {ProTableProps} from '@ant-design/pro-table';
 
 const {useLayoutEffect, useEffect, useState} = React;
 
