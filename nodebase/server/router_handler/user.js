@@ -1,5 +1,7 @@
 const dp = require('../dp/index')
 const bcryptjs = require('bcryptjs')
+const config = require('../config')
+const jwt = require('jsonwebtoken')
 const reguser = (req, res) => {
   const userInfo = req.body
   if (!userInfo.username || !userInfo.password) { // 判断注册的用户 数据 是否合适
@@ -28,7 +30,21 @@ const reguser = (req, res) => {
 }
 
 const login = (req, res) => {
-  res.send('login')
+  const userInfo = req.body
+  const searchStr = 'select * from ev_user where username=?'
+  dp.query(searchStr, [userInfo.username], (err, result) => {
+    if (err) {
+      return res.send({
+        status: 500000,
+        msg: err.message
+      })
+    }
+    if (result.length !== 1) return res.send({ status: 500000, msg: '用户名不存在，请检查'})
+    const compareResult = bcryptjs.compareSync(userInfo.password, result[0].password) // 将输入的密码与 加密后的密码进行比较
+    if (!compareResult) return res.send({ status: 500000, msg: '密码不正确'})
+    const tokenStr = jwt.sign({ username: result[0].username, nickname: result[0].nickname }, config.jwtSecret, { expiresIn: '10h'})
+    res.send({ status: 1, msg: 'login', token: 'Bearer ' + tokenStr })
+  })
 }
 
 module.exports = {

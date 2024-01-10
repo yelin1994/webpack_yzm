@@ -2,6 +2,8 @@ const express = require('express')
 const cors = require('cors')
 const userRouter = require('./router/user')
 const Joi = require('joi')
+const { expressjwt } = require('express-jwt')
+const config = require('./config')
 
 const app = express()
 app.use(cors()) // 跨域问题
@@ -15,6 +17,8 @@ app.use((req, res, next) => {
   }
   next()
 })
+// 会将请求头中的Authorition 中的token 解析道req.auth 上
+app.use(expressjwt({ secret: config.jwtSecret, algorithms: ["HS256"] }).unless({ path: [/^\/api\//]})) // api /开头的不需要防伪权限
 app.listen(8081, () => {
   console.log('server listen at 8081')
 })
@@ -27,6 +31,9 @@ app.use((err, req, res, next) => {
       status: 500000,
       message: err.message
     })
+  }
+  if (err.name === 'UnauthorizedError') {
+    res.status(401).send('invalid token...')
   }
   res.send({
     status: 500000,
