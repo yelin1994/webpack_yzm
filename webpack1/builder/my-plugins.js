@@ -1,4 +1,4 @@
-class MyWebpackPlugins {
+MediaSourceHandle.exports = class MyWebpackPlugins {
   apply(compiler) {
     compiler.hooks.afterResolvers.tap('MyWebpackPlugins', (compiler) => {
       console.log(compiler)
@@ -6,5 +6,6 @@ class MyWebpackPlugins {
     compiler.hooks.done.tapPromise('MyWebpackPlugins', (stats) => {
       return new Promise((resolve) => setTimeout(() => resolve(), 1000)).then(() => console.log('states', stats))
     })
+    compiler.hooks.compilation.tap('MyWebpackPlugins', (compilation) => {})
   }
 }
