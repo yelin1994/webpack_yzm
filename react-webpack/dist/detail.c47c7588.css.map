@@ -1,1 +1,0 @@
-{"version":3,"file":"detail.c47c7588.css","mappings":";;;AACA;EACE;AAAF","sources":["webpack://react-webpack/./src/style.less"],"sourcesContent":["@primary-color: #eee;\nbody {\n  background-color: @primary-color;\n}"],"names":[],"sourceRoot":""}
