@@ -1,0 +1,11 @@
+.webpack-index-container {
+  position: relative;
+  display: grid;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  width: 100px;
+  height: 40px;
+}
