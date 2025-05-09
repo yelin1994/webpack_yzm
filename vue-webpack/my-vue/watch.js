@@ -36,10 +36,13 @@
     set(target, key, newVal, receiver) {
        // 设置属性值
       // target[key] = newVal
+      const oldVal = target[key]
       const type = Object.prototype.hasOwnProperty.call(target, key) ? 'SET' : 'ADD'
       Reflect.set(target, key, newVal, receiver)
-      // 把副作用函数从桶里取出并执行
-     trigger(target, key, type)
+      if (oldVal !== newVal && (oldVal === oldVal || newVal === newVal)) { // NaN
+         // 把副作用函数从桶里取出并执行
+        trigger(target, key, type)
+      }
     },
 
     has(target, key) { // 拦截 in 操作
@@ -56,7 +59,7 @@
       const hadKey = Object.prototype.hasOwnProperty.call(target, key)
       const res = Reflect.deleteProperty(target, key)
       if (res && hadKey) { // 只有当删除成功 且属性是自己内部属性的时候 才触发更新
-        track(target, key, 'DELETE')
+        trigger(target, key, 'DELETE')
       }
       return res
     }
@@ -91,7 +94,7 @@
         effectsRun.add(fn)
       }
     })
-    if (type === 'ADD' || type === 'DELETE') {
+    if (type === 'ADD' || type === 'DELETE') { // 新增 或者删除属性的时候 都要触发
       const iteratorEffects = depsMap.get(ITER_KEY) // 跟踪for ... in
       iteratorEffects && iteratorEffects.forEach(fn => {
         if (fn !== activeEffect) {
@@ -207,6 +210,55 @@ function traverse(value, seen = new Set()) {
     traverse(value[prop], seen)
   }
   return value
+}
+
+function reactive(obj) {
+  return createReactive(obj)
+}
+
+function shallowReactive(obj) {
+  return createReactive(obj, true)
+}
+
+function createReactive(obj, isShallow = false, isReadonly = false) {
+  return new Proxy(obj, {
+    get(target, key, receiver) {
+      if (key === 'raw') return target // 指向被代理对象 obj
+      track(target, key)
+      const res =  Reflect.get(target, key, receiver)
+      if (isShallow) return res // 浅层响应
+      if (typeof res === 'object' && res !== null) { // 为了解决 浅响应
+        return reactive(res)
+      }
+      return res
+    },
+    set(target, key, newVal, receiver) {
+      if (isReadonly) {
+        console.warn(`属性${key}是只读的`)
+        return true
+      }
+      const oldval = target[key]
+      const type = Object.prototype.hasOwnProperty.call(target, key) ? 'SET' : 'ADD'
+      const res = Reflect.set(target, key, newVal, receiver)
+      if (target === receiver.raw) { // 避免 receiver 设置未存在属性 去触发 原型对象的追踪
+        if (oldval !== newVal && (oldval === oldval || newVal === newVal)) {
+          trigger(target, key, type)
+        }
+      }
+    },
+    deleteProperty(target, key) {
+      if (isReadonly) {
+        console.warn(`属性${key}是只读的`)
+        return true
+      }
+      const hadKey = Object.prototype.hasOwnProperty.call(target, key)
+      const res = Reflect.deleteProperty(target, key)
+      if (res && hadKey) { // 只有当删除成功 且属性是自己内部属性的时候 才触发更新
+        trigger(target, key, 'DELETE')
+      }
+      return res
+    }
+  })
 }
 
 
