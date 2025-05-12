@@ -4,6 +4,8 @@
   const data = { foo: 1, bar: 2 }
   const ITER_KEY = Symbol()
   const effectStack = [] // 为了解决 effect 嵌套
+  // 一个标记变量、代表是否进行追踪。默认值为true、允许追踪
+let shouldTrack = true
   const effect = function(fn, options = {}) {
     // activeEffect = fn
     // fn()
@@ -50,7 +52,7 @@
       return Reflect.has(target, key)
     },
 
-    ownKeys(obj) {
+    ownKeys(target) {// for ... in
       track(target, ITER_KEY)
       return Reflect.ownKeys(target)
     },
@@ -68,7 +70,7 @@
    // 在 get 拦截函数内调用 track 函数追踪变化
    function track(target, key) {
     // 没有 activeEffect，直接 return
-    if (!activeEffect) return
+    if (!activeEffect || !shouldTrack) return
     let depsMap = bucket.get(target)
     if (!depsMap) {
       bucket.set(target, (depsMap = new Map()))
@@ -82,7 +84,7 @@
     activeEffect.deps.push(deps)
   }
   // 在 set 拦截函数内调用 trigger 函数触发变化
-  function trigger(target, key, type) {
+  function trigger(target, key, type, newVal) {
     const depsMap = bucket.get(target)
     if (!depsMap) return
     const effects = depsMap.get(key)
@@ -94,11 +96,32 @@
         effectsRun.add(fn)
       }
     })
+    if (Array.isArray(target) && key === 'length') {
+      // 对于所有索引 > newval 的元素 需要将其对应的副作用函数取出来
+      depsMap.forEach((effects, key) => { // Map.prototype.forEach((value, key))
+        if (key >= newVal) {
+          effects && effects.forEach(fn => {
+            if (fn !== activeEffect) {
+              effectsRun.add(fn)
+            }
+          })
+        }
+      })
+    }
     if (type === 'ADD' || type === 'DELETE') { // 新增 或者删除属性的时候 都要触发
       const iteratorEffects = depsMap.get(ITER_KEY) // 跟踪for ... in
       iteratorEffects && iteratorEffects.forEach(fn => {
         if (fn !== activeEffect) {
-          effectsRun.add(iteratorEffects)
+          effectsRun.add(fn)
+        }
+      })
+    }
+
+    if (type === 'ADD' && Array.isArray(target)) {
+      const lengthEffects = depsMap.get('length')
+      lengthEffects && lengthEffects.forEach(fn => {
+        if (fn !== activeEffect) {
+          effectsRun.add(fn)
         }
       })
     }
@@ -212,23 +235,78 @@ function traverse(value, seen = new Set()) {
   return value
 }
 
+const reactiveMap = new Map()
+
+// let obj = {}
+// let arr = reactive([obj])
+// console.log(arr.inlcudes(arr[0])) // 没用reativeMap 会返回false 
+// 因为 inlcudes 内部会去while 遍历 arr 代理对象， 而读取arr[0]的时候 也会重新创建代理对象。两次创建的代理对象不一致
+
 function reactive(obj) {
-  return createReactive(obj)
+  // 通过原始对象寻找代理
+  let exsitObj = reactiveMap.get(obj)
+  if (exsitObj) return exsitObj
+  const proxy = createReactive(obj)
+  reactiveMap.set(obj, proxy)
+  return proxy
+}
+
+function readonly(obj) {
+  return createReactive(obj, false, true)
 }
 
 function shallowReactive(obj) {
   return createReactive(obj, true)
 }
 
+
+
+const arrInstrumentations = { // 重写arr 方法
+  // includes: function(...argvs) {
+  //   let res = originMethod.apply(this, argvs) // this 指向代理对象
+  //   if (res === false) {
+  //     res = originMethod.apply(this.raw, argvs) // this.raw 指向原始对象
+  //   }
+  //   return res
+  // }
+}
+
+['includes', 'indexOf', 'lastIndexof'].forEach(method => {
+  const originMethod = Array.prototype[method]
+  arrInstrumentations[method] = function(...argvs) {
+     let res = originMethod.apply(this, argvs) // this 指向代理对象
+    if (res === false || res === -1) {
+      res = originMethod.apply(this.raw, argvs) // this.raw 指向原始对象
+    }
+    return res
+  }
+})
+
+['push', 'pop', 'shift', 'unshift', 'splice'].forEach(method => {
+  const originMethod = Array.prototype[method]
+  arrInstrumentations[method] = function(...argvs) {
+    // 在调用原始方法、禁止追踪
+    shouldTrack = false
+    // push 方法的默认行为
+    let res = originMethod.apply(this, args)
+    // 在调用原始方法之后、恢复原来的行为、即允许追踪
+    shouldTrack = true
+    return res
+  }
+})
+
 function createReactive(obj, isShallow = false, isReadonly = false) {
   return new Proxy(obj, {
     get(target, key, receiver) {
       if (key === 'raw') return target // 指向被代理对象 obj
-      track(target, key)
+      if (Array.isArray(target) && arrInstrumentations.hasOwnProperty(key)) {
+        return Reflect.get(arrInstrumentations, key, receiver)
+      }
+      if (!isReadonly && typeof key !== 'symbol') track(target, key) // 已读 和 symbol 属性不需要追踪 for...of 
       const res =  Reflect.get(target, key, receiver)
       if (isShallow) return res // 浅层响应
-      if (typeof res === 'object' && res !== null) { // 为了解决 浅响应
-        return reactive(res)
+      if (typeof res === 'object' && res !== null) { // 为了解决 浅响应 浅只读
+        return isReadonly ? readonly(res) : reactive(res)
       }
       return res
     },
@@ -238,11 +316,13 @@ function createReactive(obj, isShallow = false, isReadonly = false) {
         return true
       }
       const oldval = target[key]
-      const type = Object.prototype.hasOwnProperty.call(target, key) ? 'SET' : 'ADD'
+      const type = Array.isArray(target) ? // 加入代理数组
+        Number(key) > target.length ?  'ADD' : 'SET' 
+       : Object.prototype.hasOwnProperty.call(target, key) ? 'SET' : 'ADD'
       const res = Reflect.set(target, key, newVal, receiver)
       if (target === receiver.raw) { // 避免 receiver 设置未存在属性 去触发 原型对象的追踪
         if (oldval !== newVal && (oldval === oldval || newVal === newVal)) {
-          trigger(target, key, type)
+          trigger(target, key, type, newVal)
         }
       }
     },
@@ -257,7 +337,12 @@ function createReactive(obj, isShallow = false, isReadonly = false) {
         trigger(target, key, 'DELETE')
       }
       return res
-    }
+    },
+     ownKeys(target) {// for ... in
+      // 如果操作目标是 数据 则用 length 来追踪
+      track(target, Array.isArray(target) ? 'length' :  ITER_KEY)
+      return Reflect.ownKeys(target)
+    },
   })
 }
 
