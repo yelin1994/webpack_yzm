@@ -5,7 +5,7 @@
   const ITER_KEY = Symbol()
   const effectStack = [] // 为了解决 effect 嵌套
   // 一个标记变量、代表是否进行追踪。默认值为true、允许追踪
-let shouldTrack = true
+  let shouldTrack = true
   const effect = function(fn, options = {}) {
     // activeEffect = fn
     // fn()
@@ -345,6 +345,70 @@ function createReactive(obj, isShallow = false, isReadonly = false) {
     },
   })
 }
+
+const set = new Set([1, 2, 3])
+const mutableStrumentation = { // 代理set map 等对象
+  add(key) {
+    const target = this.raw
+    const hadKey = target.has(key)
+    const res = target.add(key)
+    if (!hadKey) trigger(target, key, 'ADD')
+    return res
+  },
+
+  delete(key) {
+    const target = this.raw
+    const hadKey = target.has(key)
+    const res = target.delete(key)
+    if (hadKey) trigger(target, key, 'DELETE')
+    return res
+  },
+  get(key) {
+    const target = this.raw
+    const had = target.has(key)
+    track(target, key)
+    if (had) {
+      const res = target.get(key)
+      return typeof res === 'object' && res !== null ? reactive(res) : res
+    }
+  },
+  set(key, value) {
+    const target = this.raw
+    const had = target.has(key)
+    const oldVal = target.get(key)
+    // 当value 是代理对象的时候 直接取他的原始对象 省的数据污染
+    // Set 类型的 add 方法、普通对象的写值操作，还有为数组添加元素的方法等，都需要做类似的处理
+    const rawValue = value.raw || value 
+    target.set(key, value)
+    if (!had) {
+      trigger(target, key, 'ADD')
+    } else if (oldVal !== value && (old  === oldVal && value === value)) {
+      trigger(target, key, 'SET')
+    }
+  },
+
+  forEach(callback, thisArgs) {
+    const target = this.raw
+    const wrap = (val) => typeof val === 'object' ? reactive(val) : val // 深层响应
+    track(target, ITER_KEY)
+    target.forEach((val, key) => {
+      callback.call(thisArgs, wrap(val), wrap(key), this)
+    })
+  }
+}
+const p = new Proxy(set, {
+  get(target, key, receiver) {
+    if (key === 'size') {
+      // 如果读取的size 通过指定receiver 为 target 从而修复 p.size 报错的问题
+      track(target, ITER_KEY)
+      return Reflect.get(target, key, target)
+    }
+    if (key === 'raw') return target
+    // return Reflect.get(target, key, receiver)
+    // return target[key].bind(target)
+    return mutableStrumentation[key]
+  }
+})
 
 
 
