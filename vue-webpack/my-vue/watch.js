@@ -3,6 +3,7 @@
   let activeEffect = null
   const data = { foo: 1, bar: 2 }
   const ITER_KEY = Symbol()
+  const MAP_KEY_ITERATOR_KEY = Symbol()
   const effectStack = [] // 为了解决 effect 嵌套
   // 一个标记变量、代表是否进行追踪。默认值为true、允许追踪
   let shouldTrack = true
@@ -108,7 +109,14 @@
         }
       })
     }
-    if (type === 'ADD' || type === 'DELETE') { // 新增 或者删除属性的时候 都要触发
+    // Map set keys
+    if (type === 'ADD' || type === 'DELETE' && (Object.prototype.toString.call(target) === '[object Map]')) {
+      const iteratorEffects = depsMap.get(MAP_KEY_ITERATOR_KEY)
+      iteratorEffects && iteratorEffects.forEach(fn => {
+        if (fn !== activeEffect) effectsRun.add(fn)
+      })
+    }
+    if (type === 'ADD' || type === 'DELETE' || (type === 'SET' && Object.prototype.toString.call(target) === '[object Map]')) { // 新增 或者删除属性的时候 都要触发, Map 类型的 set 也要监听
       const iteratorEffects = depsMap.get(ITER_KEY) // 跟踪for ... in
       iteratorEffects && iteratorEffects.forEach(fn => {
         if (fn !== activeEffect) {
@@ -394,6 +402,82 @@ const mutableStrumentation = { // 代理set map 等对象
     target.forEach((val, key) => {
       callback.call(thisArgs, wrap(val), wrap(key), this)
     })
+  },
+
+  [Symbol.iterator]() { // for ... of
+    const target = this.raw
+    const itr = target[Symbol.iterator]()
+    const wrap = (val) => typeof val === 'object' ? reactive(val) : val // 深层响应
+    track(target, ITER_KEY)
+    // return itr
+    return {
+      next() {
+        const { value, done } = itr.next()
+        return ({
+          value: value && [wrap(value[0]), wrap(value[1])],
+          done
+        })
+      }
+    }
+  },
+
+  entries() {
+    const target = this.raw
+    const itr = target[Symbol.iterator]()
+    const wrap = (val) => typeof val === 'object' ? reactive(val) : val // 深层响应
+    track(target, ITER_KEY)
+    // return itr
+    return {
+      next() {
+        const { value, done } = itr.next()
+        return ({
+          value: value && [wrap(value[0]), wrap(value[1])],
+          done
+        })
+      },
+
+      [Symbol.iterator]() { // 可迭代协议
+        return this
+      }
+    }
+  },
+
+  values() {
+    const target = this.raw
+    const itr = target.values() // 获取原始对象的 迭代器方法
+    const wrap = (val) => typeof val === 'object' ? reactive(val) : val // 深层响应
+    track(target, ITER_KEY)
+    return {
+      next() {
+        const { value, done } = itr.next()
+        return {
+          value: wrap(value),
+          done
+        }
+      },
+
+      [Symbol.iterator]() {
+        return this
+      }
+    }
+  },
+  keys() {
+    const target = this.raw
+    const itr = target.keys()
+    const wrap = (val) => typeof val === 'object' ? reactive(val) : val
+    track(target, MAP_KEY_ITERATOR_KEY)
+    return {
+      next(){
+        const { value, done } = itr.next()
+        return {
+          value: wrap(value),
+          done
+        }
+      },
+      [Symbol.iterator]() {
+        return this
+      }
+    }
   }
 }
 const p = new Proxy(set, {
@@ -410,5 +494,16 @@ const p = new Proxy(set, {
   }
 })
 
+const obj2 = {
+  next() { // 迭代器协议 只要实现了 next 方式
+
+  },
+  [Symbol.iterator]() { // 可迭代协议
+
+  }
+}
+export default {
+  reactive
+}
 
 
