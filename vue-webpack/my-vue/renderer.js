@@ -75,7 +75,50 @@ function createRenderer(options) {
   }
 
   function patchElement(oldnode, vnode) {
+    const el = oldnode.el = vnode.el
+    const oldProps = oldnode.props
+    const newProps = vnode.props
+    for (let key in newProps) {
+      if (newProps[key] !== oldProps[key]) {
+        patchProps(el, key, oldProps[key], newProps[key])
+      }
+    }
 
+    for (let key in oldProps) {
+      if(!newProps[key]) {
+        patchProps(el, key, oldProps[key], null)
+      }
+    }
+    // 更新子节点
+    patchChildren(oldnode, vnode, el)
+  }
+
+  function patchChildren(oldnode, vnode, el) {
+    // 判断新子节点时文本节点
+    if(typeof vnode.children === 'string') {
+      // 旧节点 有三种子节点情况 没有子节点，子节点时文本节点、子节点时数组
+      // 只有当子节点为一组节点的时候 才需要逐个卸载， 其他情况下什么都不需要做
+      if (Array.isArray(oldnode.children)) {
+        oldnode.children.forEach((c) => unmount(c))
+      }
+      setElementText(el, vnode.children)
+    } else if (Array.isArray(n2.children)) { // 新子节点是一组子节点
+      // 判断旧子节点是否也是一组子节点
+      if (Array.isArray(oldnode.children)) {
+        // 代码运行到这里，说明新旧节点都是一组子节点，这里设计核心的diff 算法
+      } else {
+        // 旧子节点是文本节点 或者不存在，
+        setElementText(el, '')
+        vnode.children.forEach(c => patch(null, c, el))
+      }
+    } else {
+      // 新子节点不存在
+      if (Array.isArray(oldnode.children)) {
+        oldnode.children.forEach(c => unmount(c))
+      } else if (typeof n1.children === 'string') {
+        setElementText(el, '')
+      }
+    }
   }
 
   return {
@@ -96,18 +139,28 @@ const renderer = createRenderer({
   },
   patchProps(el, key, preValue, nextValue) {
     if (/^on/.test(key)) { // 事件处理
-      let name = key.slice(2).toLowerCase()
+     
       // preValue && el.removeListener(name, preValue)
       // el.addEventListener(name, nextValue) 
 
       let invokers = el._vei || (el._vei = {}) // 获取该元素伪造的事件处理函数 vei 是 vue event invoker
+      let invoker = el._vei[key]
+      let name = key.slice(2).toLowerCase()
       if (nextValue) {
         if (!invoker) {
-          invoker = el._vei = (e) => {
+          invoker = el._vei[key] = (e) => {
+            // e.timeStamp 是事件的开始时间
+            // 当事件的开始时间 小于 事件的绑定时间 则不执行
+            if (e.timeStamp < invoker.attached) return
             // 当伪造的处理函数执行时 会执行真正的函数
-            invoker.value(e)
+            if (Array.isArray(invoker.value)) { // 函数数组
+              invoker.value.forEach(fn => fn(e))
+            } else {
+              invoker.value(e)
+            }
           }
           invoker.value = nextValue // 绑定真正的函数
+          invoker.attached = performance.now()
           el.addEventListener(name, invoker)
         } else {
           invoker.value = nextValue // 不用移除旧函数
