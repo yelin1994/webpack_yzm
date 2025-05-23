@@ -503,7 +503,8 @@ const obj2 = {
   }
 }
 export default {
-  reactive
+  reactive,
+  effect
 }
 
 
