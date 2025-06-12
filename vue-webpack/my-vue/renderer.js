@@ -1,4 +1,4 @@
-import { reactive, effect } from './watch'
+import { reactive, effect, shallowReactive, shallowReadonly } from './watch'
 
 const Text = Symbol() // 标识文本节点
 const Comment = Symbol() // 注释节点的type
@@ -8,7 +8,7 @@ const queue = new Set() // 任务缓冲队列
 let isFlushing = false // 是否正在刷新中
 const p = Promise.resolve()
 
-function  ququeJob() { // 调度器的主要函数 用来添加任务到缓冲队列中
+function  ququeJob(job) { // 调度器的主要函数 用来添加任务到缓冲队列中
   queue.add(job)
   if (!isFlushing) { // 当处于刷新中 则不执行
     isFlushing = true
@@ -121,18 +121,132 @@ function createRenderer(options) {
     }
 
     const ComVNode = {
-      type: MyCOmponent
+      type: MyCOmponent，
+      props: {
+        title: '133'
+      }
     }
    */
 
+    // const Comp = {
+    //   setup() {
+    //     // setup 返回一个函数将作为渲染函数
+    //     return () => {
+    //       return { type: 'div', children: 'hello' }
+    //     }
+    //   }
+    // }
+
+    // const Comp = {
+    //   setup() {
+    //     const count = ref(0)
+    //     return {
+    //       count 
+    //     }
+    //   },
+    //   render() {
+    //     // 通过this 可以访问 setup 暴露出来的响应式数据
+    //     return { type: 'div', children: `count is: ${ this.count}`}
+    //   }
+    // }
+
+    // const Comp = {
+    //   props: {
+    //     foo: String
+    //   },
+    //   setup(props, setupContext) {
+    //     props.foo // 访问传入的props 数据
+    //     // setupContext 中包含与组件接口相关的重要数据
+    //     const { slots, emit, attrs, expose } = setupContext
+    //   }
+    // }
+
   function mountComponent(vnode, container, anchor) {
     const componentOption = vnode.type // 获取组件的选项对象
-    const { render, data } = componentOption // 获取组件的渲染方式
-    const state = reactive(data())
+    let { render, data,  props: propsOptions, setup,
+      beforeCreate, created, beforeMount,mounted, beforeUpdate, updated } = componentOption // 获取组件的渲染方式
+    // 在这里调用beforeCreate
+    beforeCreate && beforeCreate()
+    const state = data ? reactive(data()) : null
+
+    // 调用resolveProps 解析出最终的props 数据与attrs 数据
+    const [props, attrs] = resolveProps(propsOptions, vnode.props)
+    // 定义组件失利
+    const instance = {
+      state,
+      isMounted: false,
+      props: shallowReactive(props)
+      // 组件渲染的内容 子树
+      subTree: null
+    }
+
+    function emit(event, ...playload) { // event 事件名称 playload 传递给事件处理函数的参数
+      const eventName =`on${event[0].toUpperCase() + event.slice(1)}`
+      const handler = instance.props[eventName]
+    }
+
+    const setupContext = { attrs, emit }
+    const setupResult = setup(shallowReadonly(instance.props, setupContext))
+    let setupState = null // 用来存储 setup 返回的数据
+    if (typeof setupResult === 'function') {
+      if (render) console.error('setup 函数返回渲染函数, render 选项将被忽略')
+      render = setupResult
+    } else {
+      setupState = setupResult
+    }
+
+    vnode.component = instance
+    // 创建渲染上下文对象，本质上是组件实例的代理
+    const renderContext = new Proxy(instance, {
+      get(t, k, r) {
+        // 取得组件自身状态 与 props 数据
+        const { state, props} = t
+        // 先尝试读取自身状态数据
+        if (state && k in state) {
+          return state[k]
+        } else if (k in props) { // 如果组件自身没有该数据， 则尝试 从props 读取
+          return props[k]
+        } else if (setupState && k in setupState) {
+          return setupState[k]
+        } else {
+          console.error('不存在')
+        }
+      },
+      set (t, k, v, r) {
+        const { state, props } = t
+        if (state && k in state) {
+          state[k] = v
+        } else if (k in props) {
+          console.warn(`Attempting to mutate prop "${k}". props are readonly`)
+        } else if (setupState && k in setupState) {
+          setupState[k] = v
+        } else {
+          console.error('不存在')
+        }
+      }
+    })
+    
+    // 在这里调用created 钩子 要绑定渲染上下文对象
+    created && created.call(renderContext)
     // 当组件自身状态发生变化时 能实现自更新
     effect(() => {
       const subTree = render.call(state, state) // render 会返回虚拟 DOM, 将this 设为 state
-      patch(null, subTree, container, anchor)
+      if (!instance.isMounted) {
+        // beforeMount
+        beforeMount && beforeMount.call(state)
+        // 初次挂载
+        patch(null, subTree, container, anchor)
+        // 挂载完成
+        instance.isMounted = true
+        // 调用mounted
+        mounted && mounted.call(state)
+      } else {
+        beforeUpdate && beforeUpdate.call(state)
+        // 新的子树与上一次渲染的子树 进行打补丁
+        patch(instance.subTree, subTree, container, anchor)
+        updated && updated.call(state)
+      }
+      instance.subTree = subTree
     }, { sheduler: ququeJob })
   
   }
@@ -169,6 +283,20 @@ function createRenderer(options) {
   }
 
   function patchComponent(oldnode, vnode, anchor) {
+    // 获取组件实例，即oldnode.component
+    const instance = (vnode.component = oldnode.component)
+    // 获取当前的props
+    const { props } = instance
+    if (hasPropsChanged(oldnode.props, vnode.props)) {
+      const [nextProps] = resolveProps(vnode.type.props, vnode.props)
+      for (let k in nextProps) {
+        props[k] = nextProps[k]
+      }
+      // 删除不存在的props
+      for (let k in props) {
+        if (!(k in nextProps)) delete props[k]
+      }
+    }
 
   }
 
@@ -243,7 +371,7 @@ function createRenderer(options) {
     for (let i = 0; i < newchildren.length; i++) {
       let j = 0
       for (; j < oldchildren.length; j++) {
-        if (oldchildren[j].key === newchildren[i]) {
+        if (oldchildren[j].key === newchildren[i].key) {
           patch(oldchildren[j], newchildren[i], el)
           if (j < lastIndex) { // 旧节点的索引小于上次匹配的节点索引 所以 要移动
             const prevnode = newchildren[i - 1]
@@ -315,7 +443,7 @@ function createRenderer(options) {
         oldEndVNode = oldchildren[--oldEndIdx]
       } else {
         const oldIdx = oldchildren.findIndex(node => node.key === newStartVNode.key)
-        if (oldEndIdx > 0) { // 存在可服用的节点
+        if (oldIdx > 0) { // 存在可服用的节点
           let oldMovenode = oldchildren[oldIdx]
           patch(oldMovenode, newStartVNode, el)
           insert(oldEndVNode.el, el, oldStartVNode.el)
@@ -413,7 +541,7 @@ function createRenderer(options) {
         }
       }
       if (moved) {
-        const seq = getSequence(source)
+        const seq = getSequence(source) //最长递归子序列
         let s = seq.length - 1
         let i = count - 1
         for (;i >= 0; i--) {
@@ -533,5 +661,32 @@ const renderer = createRenderer({
     // 特殊处理 只读属性 无法通过 DOM property = xx 设置
     if (key === 'form' && el.tagName === 'INPUT') return false
     return key in el
+  }
+
+  function resolveProps(options, propsData) {
+    const props = {}
+    const attrs = {}
+    for (let key in propsData) {
+      if (key in options || key.startsWith('on')) { // @change 之类 方便emit 抛出
+        // 如果为组件传递的props数组在组件自身的props 选项中有定义，则将其视为合法的props
+        props[key] = propsData[key]
+      } else {
+        // 否则视作为attrs
+        attrs[key] = propsData[key]
+      }
+    }
+    return [props, attrs]
+  }
+
+  function hasPropsChanged(preProps, nextProps) {
+    const nextKeys = Object.keys(nextProps)
+    if (nextKeys.length !== Object.keys(preProps).length) {
+      return true
+    }
+    for (let i = 0 ; i < nextKeys.length; i++) {
+      const key = nextKeys[i]
+      if (nextProps[key] !== preProps[key]) return true
+    }
+    return false
   }
 

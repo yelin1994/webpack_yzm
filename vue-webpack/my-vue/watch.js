@@ -156,9 +156,10 @@ function cleanup(effectFn) {
 
 const createFlushJob = () => {
   const jobQueue = new Set()
-  const p = PromiseRejectionEvent.resolve()
+  const p = Promise.resolve()
   let isFLushing = false // 代表是否在刷新
-  return function() {
+  return function(job) {
+    jobQueue.add(job)
     if (isFLushing) return
     isFLushing = true
     p.then(() => {
@@ -171,7 +172,7 @@ const createFlushJob = () => {
 
 function computed(getter) {
   let value
-  let dirty = true
+  let dirty = true // 是否缓存
   const effectFn = effect(getter, { lazy: true, sheduler() {
     if (!dirty) {
       dirty = true
@@ -208,7 +209,7 @@ function watch(source, cb, options = {}) {
   }
   const jobFunc = () => {
     newValue = effctFn()
-    if (cleanup) cleanup() // 上一次调用的onInvalidate
+    if (cleanup) cleanup() // 上一次调用的onInvalidate 把上一次调用 res 直接驳回调
     cb(newValue, oldValue, onInvalidate)
     oldValue = newValue
   }
@@ -267,6 +268,9 @@ function shallowReactive(obj) {
   return createReactive(obj, true)
 }
 
+function shallowReadonly(obj) {
+  return createReactive(obj, true, true)
+}
 
 
 const arrInstrumentations = { // 重写arr 方法
@@ -347,7 +351,7 @@ function createReactive(obj, isShallow = false, isReadonly = false) {
       return res
     },
      ownKeys(target) {// for ... in
-      // 如果操作目标是 数据 则用 length 来追踪
+      // 如果操作目标是 数组 则用 length 来追踪
       track(target, Array.isArray(target) ? 'length' :  ITER_KEY)
       return Reflect.ownKeys(target)
     },
@@ -387,7 +391,7 @@ const mutableStrumentation = { // 代理set map 等对象
     // 当value 是代理对象的时候 直接取他的原始对象 省的数据污染
     // Set 类型的 add 方法、普通对象的写值操作，还有为数组添加元素的方法等，都需要做类似的处理
     const rawValue = value.raw || value 
-    target.set(key, value)
+    target.set(key, rawValue)
     if (!had) {
       trigger(target, key, 'ADD')
     } else if (oldVal !== value && (old  === oldVal && value === value)) {
@@ -504,6 +508,8 @@ const obj2 = {
 }
 export default {
   reactive,
+  shallowReactive,
+  shallowReadonly,
   effect
 }
 
