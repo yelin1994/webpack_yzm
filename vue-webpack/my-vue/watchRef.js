@@ -11,6 +11,17 @@ function ref(val) {
   return reactive(wrapper)
 }
 
+function shallowRef (val) {
+  const wrapper = {
+    value: val
+  }
+
+  Object.defineProperties(wrapper, '__v_isRef', {
+    value: true
+  })
+  return reactive(wrapper, true)
+}
+
 // 主要是问了解决响应式丢失问题
 
 function toRef(obj, key) {
@@ -57,3 +68,8 @@ function proxyRefs(target) {
 
 const obj = reactive({ foo: 1, bar: 2 })
 const newObj = proxyRefs({...toRefs(obj)})
+
+export default {
+  ref,
+  shallowRef
+}

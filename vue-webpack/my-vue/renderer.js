@@ -7,6 +7,11 @@ const Fragment = Symbol()
 const queue = new Set() // 任务缓冲队列
 let isFlushing = false // 是否正在刷新中
 const p = Promise.resolve()
+let currentInstance = null // 全局变量，存储当前正在被初始化的组件实例
+
+function setCurrentInstance(instance) {
+  currentInstance = instance
+}
 
 function  ququeJob(job) { // 调度器的主要函数 用来添加任务到缓冲队列中
   queue.add(job)
@@ -67,7 +72,7 @@ function createRenderer(options) {
       } else {
         patchElement(oldnode, vnode)
       }
-    } else if (typeof type === 'object') { //自定义组件
+    } else if (typeof type === 'object' || typeof type === 'function') { //自定义组件, 函数式组件
       if (!oldnode) {
         mountComponent(vnode, container, anchor)
       } else {
@@ -161,8 +166,23 @@ function createRenderer(options) {
     //   }
     // }
 
+  // function MyFuncComp(props) {
+  //   return { type: 'h1', children: props.title }
+  // }
+  //  // 定义 props
+  // MyFuncComp.props = {
+  //   title: String
+  // }
+
   function mountComponent(vnode, container, anchor) {
+    const isFunctional = typeof node.type === 'function'
     const componentOption = vnode.type // 获取组件的选项对象
+    if (isFunctional) {
+      componentOption = {
+        render: vnode.type,
+        props: vnode.type.props
+      }
+    }
     let { render, data,  props: propsOptions, setup,
       beforeCreate, created, beforeMount,mounted, beforeUpdate, updated } = componentOption // 获取组件的渲染方式
     // 在这里调用beforeCreate
@@ -171,13 +191,16 @@ function createRenderer(options) {
 
     // 调用resolveProps 解析出最终的props 数据与attrs 数据
     const [props, attrs] = resolveProps(propsOptions, vnode.props)
+    const slots = vnode.children
     // 定义组件失利
     const instance = {
       state,
       isMounted: false,
       props: shallowReactive(props)
       // 组件渲染的内容 子树
-      subTree: null
+      subTree: null,
+      slots,
+      mounted: [] // 在组件实例中添加 mounted 数组，用来存储通过onMounted 函数注册的生命周期钩子函数
     }
 
     function emit(event, ...playload) { // event 事件名称 playload 传递给事件处理函数的参数
@@ -185,8 +208,10 @@ function createRenderer(options) {
       const handler = instance.props[eventName]
     }
 
-    const setupContext = { attrs, emit }
+    const setupContext = { attrs, emit, slots }
+    setCurrentInstance(instance) // 在调用setup函数之前，设置当前组件实例
     const setupResult = setup(shallowReadonly(instance.props, setupContext))
+    setCurrentInstance(null)
     let setupState = null // 用来存储 setup 返回的数据
     if (typeof setupResult === 'function') {
       if (render) console.error('setup 函数返回渲染函数, render 选项将被忽略')
@@ -201,6 +226,7 @@ function createRenderer(options) {
       get(t, k, r) {
         // 取得组件自身状态 与 props 数据
         const { state, props} = t
+        if (k === '$slots') return slots
         // 先尝试读取自身状态数据
         if (state && k in state) {
           return state[k]
@@ -230,7 +256,7 @@ function createRenderer(options) {
     created && created.call(renderContext)
     // 当组件自身状态发生变化时 能实现自更新
     effect(() => {
-      const subTree = render.call(state, state) // render 会返回虚拟 DOM, 将this 设为 state
+      const subTree = render.call(renderContext, renderContext) // render 会返回虚拟 DOM, 将this 设为 state
       if (!instance.isMounted) {
         // beforeMount
         beforeMount && beforeMount.call(state)
@@ -239,7 +265,8 @@ function createRenderer(options) {
         // 挂载完成
         instance.isMounted = true
         // 调用mounted
-        mounted && mounted.call(state)
+        mounted && mounted.call(renderContext)
+        instance.mounted && instance.mounted.forEach(hook => hook.call(renderContext))
       } else {
         beforeUpdate && beforeUpdate.call(state)
         // 新的子树与上一次渲染的子树 进行打补丁
@@ -277,6 +304,8 @@ function createRenderer(options) {
     if (vnode.type === Fragment) {
       vnode.children.forEach(c => unmount(c))
       return
+    } else if (typeof vnode.type === 'object') {
+      unmount(vnode.component.subTree)
     }
     let parent = vnode.el.parentNode
     if (parent) parent.removeChild()
@@ -688,5 +717,22 @@ const renderer = createRenderer({
       if (nextProps[key] !== preProps[key]) return true
     }
     return false
+  }
+
+  function onMounted(fn) {
+    if (currentInstance) {
+      currentInstance.mounted.push(fn)
+    } else {
+      console.log('onMounted 函数只能在setup 中调用')
+    }
+  }
+
+  function onUmounted(fn) {
+
+  }
+
+  export default {
+    Text,
+    onUmounted
   }
 
