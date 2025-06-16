@@ -74,6 +74,9 @@ function createRenderer(options) {
       }
     } else if (typeof type === 'object' || typeof type === 'function') { //自定义组件, 函数式组件
       if (!oldnode) {
+        if (vnode.keptAlive) { // 如果组件已经被keepAlive 则不会重新挂载它 而是会调用 _activate 来激活它
+          vnode.keepAliveInstance._activate(vnode, container, anchor)
+        }
         mountComponent(vnode, container, anchor)
       } else {
         patchComponent(oldnode, vnode, anchor)
@@ -200,7 +203,18 @@ function createRenderer(options) {
       // 组件渲染的内容 子树
       subTree: null,
       slots,
+      keepAliveCtx: null // 只有KeepAlive 组件的实例下 会有keepAliveCtx 属性
       mounted: [] // 在组件实例中添加 mounted 数组，用来存储通过onMounted 函数注册的生命周期钩子函数
+    }
+
+    const isKeepAlive = vnode.type.__isKeepAlive // 检查是否是 KeepAlive 组件
+    if (isKeepAlive) {
+      instance = keepAliveCtx = {
+        move(vnode, container, anchor) {
+          insert(vnode.component.subTree.el, container, anchor)
+        },
+        createElement
+      }
     }
 
     function emit(event, ...playload) { // event 事件名称 playload 传递给事件处理函数的参数
@@ -305,7 +319,11 @@ function createRenderer(options) {
       vnode.children.forEach(c => unmount(c))
       return
     } else if (typeof vnode.type === 'object') {
-      unmount(vnode.component.subTree)
+      if (vnode.shouldKeepAlive) {
+        vnode.keepAliveInstance._deActive(vnode) // keepAlive 失活
+      } else {
+        unmount(vnode.component.subTree)
+      }
     }
     let parent = vnode.el.parentNode
     if (parent) parent.removeChild()
