@@ -2,6 +2,10 @@ let currentInstance = null // 先复用 renderer 中
 let container = null
 const KeepAlive = { // 卸载 是移动到一个隐藏的容器， 挂载是从一个隐藏容器中取出
   __isKeepAlive: true, // keepalive 组件独有的属性，用作标识
+  props: {
+    include: RegExp,
+    exclude: RegExp
+  }
   setup(props, { slots }) {
     const cache = new Map() // key 为 vnode.type value: vnode
     const instance = currentInstance // 当前keepalive 的组件实例
@@ -19,6 +23,10 @@ const KeepAlive = { // 卸载 是移动到一个隐藏的容器， 挂载是从�
       let rawVNode = slots.default() // keepAlive 的默认插槽就是要被keepAlive 的组件， 如果不是组件 直接渲染，因为非组件的虚拟节点无法被keepAlive
       if (typeof rawVNode.type !== 'object') {
         return rawVNode
+      }
+      const name = rawVNode.type.name
+      if (name && ((props.include && !props.include.test(name)) || (props.exclude && props.exclude.test(name)))) {
+        return rawVNode // 直接渲染组件不进行其他操作
       }
       const cachedVNode = cache.get(rawVNode.type) // 在挂载时 先获取缓存的组件
       if(cachedVNode) {

@@ -209,7 +209,7 @@ function createRenderer(options) {
 
     const isKeepAlive = vnode.type.__isKeepAlive // 检查是否是 KeepAlive 组件
     if (isKeepAlive) {
-      instance = keepAliveCtx = {
+      instance.keepAliveCtx = {
         move(vnode, container, anchor) {
           insert(vnode.component.subTree.el, container, anchor)
         },
@@ -220,11 +220,12 @@ function createRenderer(options) {
     function emit(event, ...playload) { // event 事件名称 playload 传递给事件处理函数的参数
       const eventName =`on${event[0].toUpperCase() + event.slice(1)}`
       const handler = instance.props[eventName]
+      handler(...playload)
     }
 
     const setupContext = { attrs, emit, slots }
     setCurrentInstance(instance) // 在调用setup函数之前，设置当前组件实例
-    const setupResult = setup(shallowReadonly(instance.props, setupContext))
+    const setupResult = setup(shallowReadonly(instance.props), setupContext)
     setCurrentInstance(null)
     let setupState = null // 用来存储 setup 返回的数据
     if (typeof setupResult === 'function') {
