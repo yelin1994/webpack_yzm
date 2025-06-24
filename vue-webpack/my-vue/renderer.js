@@ -72,6 +72,17 @@ function createRenderer(options) {
       } else {
         patchElement(oldnode, vnode)
       }
+    } else if(type === 'object' && type.__isTeleport) { // Teleport 组件
+      // 调用teleport 组件选项中的process 函数 将控制权交接出去
+      // 第5个参数 是渲染器的一些内部方法
+      type.process(oldnode, vnode, container, anchor, {
+        patch,
+        patchChildren,
+        unmount,
+        move(vnode, container, anchor) {
+          insert(vnode.component ? vnode.component.subTree.el : vnode.el, container, anchor)
+        }
+      })
     } else if (typeof type === 'object' || typeof type === 'function') { //自定义组件, 函数式组件
       if (!oldnode) {
         if (vnode.keptAlive) { // 如果组件已经被keepAlive 则不会重新挂载它 而是会调用 _activate 来激活它
@@ -311,11 +322,20 @@ function createRenderer(options) {
         patch(null, child, el)
       })
     }
+
+    const needTransition = vnode.transition
+    if (needTransition) {
+      vnode.transition.beforeEnter(el)
+    }
     insert(vnode, container, anchor)
+    if (needTransition) {
+      vnode.transition.enter(el)
+    }
   }
 
   function unmount(vnode) {
     // Fragment 需要卸载children
+    const needTransition = vnode.transition
     if (vnode.type === Fragment) {
       vnode.children.forEach(c => unmount(c))
       return
@@ -327,7 +347,16 @@ function createRenderer(options) {
       }
     }
     let parent = vnode.el.parentNode
-    if (parent) parent.removeChild()
+    if (parent) {
+      const performRemove = () => {
+        parent.removeChild(vnode.el)
+      }
+      if (needTransition) {
+        vnode.transition.leave(vnode.el, performRemove)
+      } else {
+        performRemove()
+      }
+    } 
   }
 
   function patchComponent(oldnode, vnode, anchor) {
