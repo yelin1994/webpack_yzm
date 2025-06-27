@@ -1,3 +1,5 @@
+import { createStringLiteral, createArrayExpression, createCallExpression } from './jsast'
+
 // 定义状态机的状态
 const State = {
   initial: 1,    // 初始状态
@@ -193,17 +195,47 @@ function transform(ast) {
 }
 
 function transformText(node, context) {
-  if (node.type === 'Text') {
-    // 如果是文本节点，直接调用 context.removeNode 函数将其移除即可
-    context.removeNode()
+ // 如果不是文本节点，则什么都不做
+ if (node.type !== 'Text') {
+  return
+}
+// 文本节点对应的 JavaScript AST 节点其实就是一个字符串字面量，
+// 因此只需要使用 node.content 创建一个 StringLiteral 类型的节点即可
+// 最后将文本节点对应的 JavaScript AST 节点添加到 node.jsNode 属性下
+  node.jsNode = createStringLiteral(node.content)
+}
+
+
+// 转换标签节点
+function transformElement(node) {
+  // 将转换代码编写在退出阶段的回调函数中，
+  // 这样可以保证该标签节点的子节点全部被处理完毕
+  return () => {
+    // 如果被转换的节点不是元素节点，则什么都不做
+    if (node.type !== 'Element') {
+      return
+    }
+
+    // 1. 创建 h 函数调用语句,
+    // h 函数调用的第一个参数是标签名称，因此我们以 node.tag 来创建一个字符串字面量节点
+    // 作为第一个参数
+    const callExp = createCallExpression('h', [
+      createStringLiteral(node.tag)
+    ])
+    // 2. 处理 h 函数调用的参数
+    node.children.length === 1
+      // 如果当前标签节点只有一个子节点，则直接使用子节点的 jsNode 作为参数
+      ? callExp.arguments.push(node.children[0].jsNode)
+      // 如果当前标签节点有多个子节点，则创建一个 ArrayExpression 节点作为参数
+      : callExp.arguments.push(
+        // 数组的每个元素都是子节点的 jsNode
+        createArrayExpression(node.children.map(c => c.jsNode))
+      )
+    // 3. 将当前标签节点对应的 JavaScript AST 添加到 jsNode 属性下
+    node.jsNode = callExp
   }
 }
 
-function transformElement(node, context) {
-  if (node.type === 'Element' && node.tag === 'p') {
-    node.tag = 'h1'
-  }
-}
 
 function traverseNode(ast, context) {
   context.currentNode = ast
@@ -235,4 +267,44 @@ function traverseNode(ast, context) {
   while (i--) {
     exitFns[i]()
   }
+}
+
+function genNode(node) {
+  switch (node.type) {
+    case 'FunctionDecl':
+      return 
+    case 'Text':
+      return genText(node, context)
+    case 'Comment':
+  }
+}
+
+function generate(node) {
+  const context = {
+    code: '', 
+    push(code) {
+      context.code += code
+    },
+    currentIndent: 0, // 当前缩进的级别，初始值为 0， 即没有缩进
+    newline() {
+      context.code += '\n' + ' '.repeat(context.currentIndent)
+    },
+    indent() { // 用来缩进 即让currentIndent的值增加，调用换行函数
+      context.currentIndent++
+      context.newline()
+    },
+    deindent() { // 用来取消缩进 即让currentIndent的值减少，调用换行函数
+      context.currentIndent--
+      context.newline()
+    }
+  }
+
+  genNode(node, context)
+  return context.code
+}
+
+function compile(template) {
+  const ast = parse(template)
+  transform(ast)
+  return generate(ast)
 }
