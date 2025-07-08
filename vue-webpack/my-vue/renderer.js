@@ -53,8 +53,8 @@ function createRenderer(options) {
     }
     container._vnode = vnode
   }
-  function hydrate(vnode, container) {
-
+  function hydrate(vnode, container) { // 同构应用
+    hydrateNode(container.firstChild, vnode, container)
   }
 
 
@@ -301,7 +301,25 @@ function createRenderer(options) {
       }
       instance.subTree = subTree
     }, { sheduler: ququeJob })
-  
+    instance.update = effect(() => {
+      const subTree = render.call(renderContext, renderContext)
+      if (!instance.isMounted) {
+        beforeMount && beforeMount.call(renderContext)
+        if (vnode.el) { // 如果 vnode.el 存在 则意味着要执行激活
+          hydrateNode(vnode.el, subTree, container)
+        } else {
+          patch(null, subTree, container, anchor)
+        }
+        instance.isMounted = true
+        mounted && mounted.call(renderContext)
+        instance.mounted && instance.mounted.forEach(hook => hook.call(renderContext))
+      } else {
+        beforeUpdate && beforeUpdate.call(renderContext)
+        patch(instance.subTree, subTree, container, anchor)
+        updated && updated.call(renderContext)
+      }
+      instance.subTree = subTree
+    }, { sheduler: ququeJob })
   }
 
   function mountElement(vnode, container, anchor) {
@@ -381,6 +399,17 @@ function createRenderer(options) {
     const el  = vnode.el = oldnode.el
     const oldProps = oldnode.props
     const newProps = vnode.props
+    if (vnode.patchFlags) {
+      if (vnode.patchFlags  === 1) { // 只需更新class
+      } else if (vnode.patchFlags === 2) { // 只需更新style
+      } else if (vnode.patchFlags === 4) { // 只需更新props
+      } else if (vnode.patchFlags === 8) { // 只需更新children
+      } else if (vnode.patchFlags === 16) { // 只需更新attrs
+      } else if (vnode.patchFlags === 32) { // 只需更新DOMProps
+      } else if (vnode.patchFlags === 64) { // 只需更新textContent
+      } else if (vnode.patchFlags === 128) { // 只需更新ref
+      }
+    }
     for (let key in newProps) {
       if (newProps[key] !== oldProps[key]) {
         patchProps(el, key, oldProps[key], newProps[key])
@@ -392,8 +421,18 @@ function createRenderer(options) {
         patchProps(el, key, oldProps[key], null)
       }
     }
-    // 更新子节点
-    patchChildren(oldnode, vnode, el)
+
+    if (vnode.dynamicChildren) {
+      patchBlockChildren(oldnode, vnode)
+    } else {
+      // 更新子节点
+      patchChildren(oldnode, vnode, el)
+    }
+  }
+
+  function patchBlockChildren(oldnode, vnode) {
+    for (let i = 0; i < vnode.dynamicChildren.length; i++) {
+      patchElement(oldnode.dynamicChildren[i], vnode.dynamicChildren[i])
   }
 
   function patchChildren(oldnode, vnode, el) {
@@ -662,6 +701,41 @@ function createRenderer(options) {
     }
     ans = stack.length > ans ? [...stack] : ans
     return ans
+  }
+
+  //一个虚拟节点被挂载之后，为了保证更新程序能正确运行，需要通过该虚拟节点的 vnode.el 属性存储对真实 DOM 对象的引用。
+  // 而同构渲染也是一样，为了应用程序在后续更新过程中能够正确运行，我们需要在页面中已经存在的 DOM 对象与虚拟节点对象之间建立正确的联系。
+  // 另外，在服务端渲染的过程中，会忽略虚拟节点中与事件相关的 props。所以，当组件代码在客户端运行时，我们需要将这些事件正确地绑定到元素上。
+
+  function hydrateNode(node, vnode, container) { // 同构应用 将虚拟节点 与 真实节点 进行关联
+    const { type } = vnode
+    vnode.el = node
+    if (typeof type === 'string') {
+      if (node.nodeType !== 1) 
+        return console.error('节点必须是一个元素节点')
+      }
+      hydrateElement(node, vnode)
+    } else if (type === 'object') {
+      mountComponent(vnode, container, null)
+    }
+    return node.nextSibling
+  }
+
+  function hydrateElement(node, vnode) {
+    if (vnode.props) {
+      for (let key in vnode.props) {
+        if (/^on/.test(key)) {
+          patchProps(node, key, null, vnode.props[key])
+        }
+      }
+    }
+    if (Array.isArray(vnode.children)) {
+      let nextNode = node.firstChild
+      const len = vnode.children.length
+      for (let i = 0; i < len; i++) {
+        nextNode = hydrateNode(nextNode, vnode.children[i], node)
+      }
+    }
   }
 
   return {
