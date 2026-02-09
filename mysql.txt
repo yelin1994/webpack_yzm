@@ -1,0 +1,49 @@
+// 创建数据库
+create database zoo;
+// 重命名
+rename database zoo to zoo1;
+
+// 创建表
+     -- 注释，zoo是动物园数据库
+     create table animal (
+       `id` int not null comment '主键',
+       `name` varchar(50) not null comment '动物名称',
+       `age` smallint not null comment '年龄',
+       `description` text null comment '详细介绍',
+       `create_time` datetime not null comment '创建时间',
+       `update_time` datetime not null comment '更新时间',
+       `is_delete` tinyint not null comment '是否删除，1 表示已删除，0 表示未删除',
+       primary key (`id`));
+
+     insert into animal(id, name, age, description, create_time, update_time,
+is_delete)
+     values (1,'东北虎','3','东北虎：是猫科、豹属动物。是虎的亚种之一。','2022-12-01 00:00:00',
+'2022-12-01 00:00:00',0);
+
+     drop table animal_1;
+
+     delete from table where id = id
+
+        -- rename 原表 to 目标表，可以重命名表名称
+     rename table animal to animal_m;
+  
+     -- 修改表备注信息
+     alter table animal comment '动物表';
+
+          -- animal表添加en_name字段
+     alter table animal add en_name varchar(255) null comment '英文名';
+
+          -- 删除字段en_name
+     alter table animal drop column en_name;
+     -- 与添加多字段类似，可以同时删除多个字段
+     alter table animal
+        drop column kingdom,
+        drop column phylum;
+
+          -- 重命名en_name为en_name_v2
+     alter table animal rename column en_name to en_name_v2;
+          -- 修改animal表字段长度为255，备注信息为名称
+     alter table animal modify name varchar(255) not null comment '名称';
+
+          -- 可同时修改字段名称和字段定义
+     alter table animal change en_name_v2 en_name varchar(64) not null comment '英文名';
